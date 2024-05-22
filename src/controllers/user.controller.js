@@ -152,7 +152,7 @@ const loginUser = asyncHandler(async (req, res) =>{
 
 const logoutUser = asyncHandler(async(req, res) => {
     await User.findByIdAndUpdate(
-        req.user._id,
+        req.user?._id,
         {
             $unset: {
                 refreshToken: 1 // this removes the field from document
@@ -230,9 +230,159 @@ const refreshAccessToken = asyncHandler(
     }
 )
 
+const changePassword = asyncHandler(
+    async (req,res)=> {
+        const { oldPassword,newPassword } = req.body
+        
+        const user = await User.findById(req.user?._id);
+        const isPasswordValid = await user.isPasswordCorrect(oldPassword);
+
+        if (!isPasswordValid) {
+            throw new ApiError(400, "Invalid old password")
+        }
+
+        user.password = newPassword;
+        await user.save({validateBeforeSave: false});
+
+        return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                {},
+                "Password changed successfully"
+            )
+        )
+    }
+)
+
+const getCurrentUser = asyncHandler(
+    async (res, req) => {
+        return res
+        .status(200)
+        .json(
+            200,
+            req.user,
+            "Current User Fetch Successfully"
+        )
+    }
+)
+
+const updateAccountDetails = asyncHandler(
+    async (req, res) => {
+        const {fullName, email} = res.body;
+
+        if(!fullName || !email){
+            throw new ApiError(400, "All fields are required")
+        }
+
+        const user = await User.findByIdAndUpdate(
+            req.user?._id,
+            {
+                $set: {
+                    fullName,
+                    email: email,
+                }
+            },
+            {
+                new: true
+            }
+        ).select("-password -refreshToken");
+
+        return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                user,
+                "Account Details Updated"
+            )
+        )
+    }
+)
+
+const updateUserAvatar = asyncHandler(
+    async (req, res) => {
+        const avatarLocalPath = res.file?.path;
+
+        if(!avatarLocalPath){
+            throw new ApiError(400, "Avatar file is required")
+        }
+
+        const avatar = await uploadOnCloudinary(avatarLocalPath);
+
+        if(!avatar.url){
+            throw new ApiError(500, "Something went wrong while uploading avatar");
+        }
+
+        const user = await User.findByIdAndUpdate(
+            req.user?._id,
+            {
+                $set: {
+                    avatar: avatar.url,
+                }
+            },
+            {
+                new: true
+            }
+        ).select("-password -refreshToken");
+
+        
+        
+        return res
+        .status(200)
+        .json(
+            200,
+            user,
+            "Avatar Updated"
+        )
+    }
+)
+
+const updateUserCoverImage = asyncHandler(
+    async (req, res) => {
+        const coverImageLocalPath = req.file?.path;
+
+        if(!coverImageLocalPath){
+            throw new ApiError(400, "Cover Image file is required")
+        }
+
+        const coverImage = await uploadOnCloudinary(coverImageLocalPath);
+
+        if(!coverImage){
+            throw new ApiError(500,"Something went wrong while uploading Cover Image")
+        }
+
+        const user = await User.findByIdAndUpdate(
+            req.user?._id,
+            {
+                $set: {
+                    coverImage: coverImage.url,
+                }
+            },
+            {
+                new: true
+            }
+        ).select("-password -refreshToken")
+        
+        return res
+        .status(200)
+        .json(
+            200,
+            user,
+            "Cover Image Updated"
+        )
+    }
+)
+
 export { 
     registerUser, 
     loginUser, 
     logoutUser,
-    refreshAccessToken
+    refreshAccessToken,
+    changePassword,
+    getCurrentUser,
+    updateAccountDetails,
+    updateUserAvatar,
+    updateUserCoverImage,
 }
